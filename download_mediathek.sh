@@ -3,6 +3,8 @@
 # ------------------------------------------------------------------
 # [Author]  Leo Gaggl
 #           http://www.gaggl.com
+#           Markus Petermann
+#           https://markuspetermann.net
 #           ©2014 - SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. 
 #           License GPL V2 - details see attached LICENSE file
 
@@ -12,20 +14,24 @@
 #
 # Dependency:
 #     http://stedolan.github.io/jq/
-#     UBUNTU: sudo apt-get install jq
+#     Ubuntu/Debian: sudo apt-get install jq
 # ------------------------------------------------------------------
 
 ##########################################
 ## Local Variables
 ##########################################
 
+##########################################
+## Local Variables
+##########################################
+
 MEDIA_URL=${BASH_ARGV[0]}
-MEDIATHEK_URL="http://www.ardmediathek.de/play/media/"
+MEDIATHEK_URL="http://classic.ardmediathek.de/play/media/"
 MEDIATHEK_POSTFIX="?devicetype=pc"
-QUALITY=3	       ## override with -q
+QUALITY=4              ## override with -q
 FILENAME=''     ## override with -f
 ## 0 ... Low Quality
-## 3 ... High Quality
+## 4 ... High Quality
 
 ##########################################
 # Processing Options
@@ -33,16 +39,16 @@ FILENAME=''     ## override with -f
 
 while getopts ":q:f:h" opt; do
   case $opt in
-    q)	## Download quality setting
+    q)  ## Download quality setting
       QUALITY=$OPTARG
       ;;
     f)  ## Filename to save
       FILENAME=$OPTARG
       ;;
-    h)	## Help
+    h)  ## Help
       echo "Usage: ./download_mediathek.sh -f filename.mp4 -q 0-3 MEDIATHEK-URL"
-	  exit 1
-      ;;	  	  
+          exit 1
+      ;;
     \?)
       echo "Invalid option: -$OPTARG" >&2
       exit 1
@@ -63,7 +69,7 @@ if test -z "$MEDIA_URL" ; then
 fi
 
 MEDIAID=$(echo "$MEDIA_URL" | sed -n 's/^.*documentId=\([^&]*\).*$/\1/p' | sed "s/%20/ /g")
-#echo 'MEDIAID: '${MEDIAID}
+echo 'MEDIAID: '${MEDIAID}
 
 if test -z "$MEDIAID" ; then
   echo -e "No DocumentID found in URL." >&2;
@@ -71,21 +77,19 @@ if test -z "$MEDIAID" ; then
 fi
 
 JSON_URL="${MEDIATHEK_URL}${MEDIAID}${MEDIATHEK_POSTFIX}"
-#echo 'JSON: '${JSON_URL}
-DOWNLOADURL=$(curl --silent $JSON_URL | jq -c '._mediaArray[1]._mediaStreamArray[]' | grep \"_quality\":$QUALITY | jq -r '._stream')
-#echo 'Downloading: ' ${DOWNLOADURL}
-
+echo 'JSON: '${JSON_URL}
+DOWNLOADURL=$(curl --silent $JSON_URL | jq -r '._mediaArray[0]._mediaStreamArray['$QUALITY']._stream')
+echo 'Downloading: ' ${DOWNLOADURL}
 if test -z "$DOWNLOADURL" ; then
-  echo -e "No downloadable media  found for this DocumentID." >&2;
+  echo -e "No downloadable media found for this DocumentID." >&2;
   exit 1
 fi
 
 ##########################################
 ## Download
 ##########################################
-
 if [ -n "$FILENAME" ]; then
   wget -O ${FILENAME} ${DOWNLOADURL}
 else
   wget ${DOWNLOADURL}
-fi	
+fi
