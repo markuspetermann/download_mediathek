@@ -1,10 +1,5 @@
-media
-=====
+## download_mediathek
 
-download_mediathek.sh
+Download ARD Mediathek media files
 
-Offline viewing of ARD Mediathek media files
-
-Usage: ./download_mediathek.sh -f filename.mp4 -q 0-3 MEDIATHEK-URL
-
-See http://www.gaggl.com/2014/07/ard-mediathek-offline-viewing-on-ubuntu/
+Usage: ./download_mediathek.sh -f filename.mp4 -q 0-4 "MEDIATHEK-URL"
