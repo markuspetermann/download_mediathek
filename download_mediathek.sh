@@ -1,37 +1,30 @@
 #!/bin/bash
 
 # ------------------------------------------------------------------
-# [Author]  Leo Gaggl
-#           http://www.gaggl.com
-#           Markus Petermann
+# [Author]  Markus Petermann
 #           https://markuspetermann.net
-#           ©2014 - SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. 
+#
+#           Based on the original script from Leo Gaggl
+#           http://www.gaggl.com / https://github.com/leogaggl/media
+#
+#           SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
 #           License GPL V2 - details see attached LICENSE file
-
-#           This script downloads a media file from 
-#           ARD Mediathek.
-#           http://github.com/leogaggl/media/
+#
+#           This script downloads a media file from ARD Mediathek
+#           http://github.com/markuspetermann/download_mediathek
 #
 # Dependency:
 #     http://stedolan.github.io/jq/
-#     Ubuntu/Debian: sudo apt-get install jq
+#     Debian/Ubuntu: sudo apt-get install jq
 # ------------------------------------------------------------------
 
 ##########################################
 ## Local Variables
 ##########################################
 
-##########################################
-## Local Variables
-##########################################
-
 MEDIA_URL=${BASH_ARGV[0]}
-MEDIATHEK_URL="http://classic.ardmediathek.de/play/media/"
-MEDIATHEK_POSTFIX="?devicetype=pc"
-QUALITY=4              ## override with -q
+QUALITY=3       ## override with -q
 FILENAME=''     ## override with -f
-## 0 ... Low Quality
-## 4 ... High Quality
 
 ##########################################
 # Processing Options
@@ -68,20 +61,20 @@ if test -z "$MEDIA_URL" ; then
   exit 1
 fi
 
-MEDIAID=$(echo "$MEDIA_URL" | sed -n 's/^.*documentId=\([^&]*\).*$/\1/p' | sed "s/%20/ /g")
-echo 'MEDIAID: '${MEDIAID}
+site=$(wget $MEDIA_URL -q -O -)
+re="O_STATE__\s=\s(.+);\s+<"
 
-if test -z "$MEDIAID" ; then
-  echo -e "No DocumentID found in URL." >&2;
-  exit 1
+if [[ $site =~ $re ]]; then
+  json=${BASH_REMATCH[1]}
 fi
 
-JSON_URL="${MEDIATHEK_URL}${MEDIAID}${MEDIATHEK_POSTFIX}"
-echo 'JSON: '${JSON_URL}
-DOWNLOADURL=$(curl --silent $JSON_URL | jq -r '._mediaArray[0]._mediaStreamArray['$QUALITY']._stream')
+DOWNLOADURL=$(echo $json | jq -r '[[.[keys[] | select(contains(".mediaCollection._mediaArray.0._mediaStreamArray."))]] | .[] | ._stream.json | .[]]
+                                  | map(select(test("(lo\\.mp4|hi\\.mp4|hq\\.mp4|hd\\.mp4)"))) | .['$QUALITY']')
+
 echo 'Downloading: ' ${DOWNLOADURL}
+
 if test -z "$DOWNLOADURL" ; then
-  echo -e "No downloadable media found for this DocumentID." >&2;
+  echo -e "No downloadable media found." >&2;
   exit 1
 fi
 
