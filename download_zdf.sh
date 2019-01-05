@@ -10,7 +10,7 @@
 #           SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND
 #           License GPL V2 - details see attached LICENSE file
 #
-#           This script downloads a media file from ARD Mediathek
+#           This script downloads a media file from ZDF Mediathek
 #           http://github.com/markuspetermann/download_mediathek
 #
 # Dependency:
@@ -23,7 +23,7 @@
 ##########################################
 
 MEDIA_URL=${BASH_ARGV[0]}
-QUALITY=3       ## override with -q
+BASE_URL='https://api.zdf.de'
 FILENAME=''     ## override with -f
 
 ##########################################
@@ -32,16 +32,13 @@ FILENAME=''     ## override with -f
 
 while getopts ":q:f:h" opt; do
   case $opt in
-    q)  ## Download quality setting
-      QUALITY=$OPTARG
-      ;;
     f)  ## Filename to save
       FILENAME=$OPTARG
       ;;
-    h)  ## Help
-      echo "Usage: ./download_mediathek.sh -f filename.mp4 -q 0-3 MEDIATHEK-URL"
-          exit 1
-      ;;
+    h)	## Help
+      echo "Usage: ./download_zdf.sh -f filename.mp4 MEDIATHEK-URL"
+	  exit 1
+      ;;	  	  
     \?)
       echo "Invalid option: -$OPTARG" >&2
       exit 1
@@ -61,15 +58,37 @@ if test -z "$MEDIA_URL" ; then
   exit 1
 fi
 
-site=$(wget $MEDIA_URL -q -O -)
-re="O_STATE__\s=\s(.+);\s+<"
+JSON=$(wget $MEDIA_URL -q -O - | tr -d '\n\t ' | grep -oP "data-zdfplayer-jsb='(.*?)'" | cut -d $'\n' -f1 | cut -d \' -f2)
 
-if [[ $site =~ $re ]]; then
-  json=${BASH_REMATCH[1]}
+CONTENTURL=$(echo $JSON | jq -r '.content')
+APITOKEN=$(echo $JSON | jq -r '.apiToken')
+
+echo 'CONTENTURL: '$CONTENTURL
+
+if test -z "$CONTENTURL" ; then
+  echo -e "No Content URL found." >&2
+  exit 1
 fi
 
-DOWNLOADURL=$(echo $json | jq -r '[[.[keys[] | select(contains(".mediaCollection._mediaArray.0._mediaStreamArray."))]] | .[] | ._stream.json | .[]]
-                                  | map(select(test("(lo\\.mp4|hi\\.mp4|hq\\.mp4|hd\\.mp4)"))) | .['$QUALITY']')
+echo 'APITOKEN: '$APITOKEN
+
+if test -z "$APITOKEN" ; then
+  echo -e "No API Token found." >&2
+  exit 1
+fi
+
+HEADER='--header=Api-Auth: Bearer '$APITOKEN
+TEX_URL=$(wget "$HEADER" $CONTENTURL -q -O - | jq -r '.mainVideoContent | .["http://zdf.de/rels/target"] | .["http://zdf.de/rels/streams/ptmd-template"]' | sed -e 's/{playerId}/ngplayer_2_3/g')
+
+echo 'TEX_URL: '$BASE_URL$TEX_URL
+
+if test -z "$TEX_URL" ; then
+  echo -e "No TEX URL found." >&2
+  exit 1
+fi
+
+DOWNLOADURL=$(wget "$HEADER" $BASE_URL$TEX_URL -q -O - | jq -r '.priorityList | map(select(.formitaeten[0].type | contains("mp4"))) | .[0].formitaeten[0].qualities 
+                                                         | map(select(.quality | contains("veryhigh"))) | .[0].audio.tracks[0].uri')
 
 echo 'Downloading: ' ${DOWNLOADURL}
 
